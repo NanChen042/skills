@@ -1,10 +1,19 @@
-import { ISkill } from '../../types';
+import fs from 'fs';
+import path from 'path';
+import { ISkill } from '../../../types';
+
+// 动态读取同目录下的 skill.md 作为 prompt
+const promptPath = path.join(__dirname, 'skill.md');
+const promptContent = fs.existsSync(promptPath) 
+    ? fs.readFileSync(promptPath, 'utf8') 
+    : undefined;
 
 export const TimeSkill: ISkill = {
     id: 'time-skill',
     name: '当前时间',
     description: '获取系统当前的完整日期和时间信息。',
     category: 'external',
+    prompt: promptContent,
     definition: {
         type: 'function',
         function: {

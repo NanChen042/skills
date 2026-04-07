@@ -43,6 +43,7 @@ export interface ISkill {
     name: string;
     description: string;
     category: 'internal' | 'external';
+    prompt?: string; // Markdown formatted instructions/system prompt for this skill
     definition: {
         type: 'function';
         function: {

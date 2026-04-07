@@ -1,10 +1,19 @@
-import { ISkill, WeatherData } from '../../types';
+import fs from 'fs';
+import path from 'path';
+import { ISkill } from '../../../types';
+
+// 动态读取同目录下的 skill.md 作为 prompt
+const promptPath = path.join(__dirname, 'skill.md');
+const promptContent = fs.existsSync(promptPath) 
+    ? fs.readFileSync(promptPath, 'utf8') 
+    : undefined;
 
 export const WeatherSkill: ISkill = {
     id: 'weather-skill',
     name: '天气查询',
     description: '查询指定城市的当前实时天气情况，包括温度、湿度和风速。',
     category: 'internal',
+    prompt: promptContent,
     definition: {
         type: 'function',
         function: {
@@ -25,7 +34,6 @@ export const WeatherSkill: ISkill = {
     handler: async (args: { city: string }) => {
         console.log(`🌦️ [Skill: Weather] Fetching for: ${args.city}`);
         
-        // 模拟外部 API 调用延迟
         await new Promise(resolve => setTimeout(resolve, 500));
 
         const temperatures = ['18°C', '22°C', '25°C', '15°C', '30°C'];
