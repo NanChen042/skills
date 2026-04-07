@@ -13,6 +13,12 @@ export const ChatController = {
             return res.status(400).json({ error: 'Prompt is required' });
         }
 
+        // 🟢 [优化] 立即建立 SSE 连接并刷新 Header
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
         try {
             console.log(`💬 User Input: ${prompt} (Session: ${sessionId || 'None'})`);
             
@@ -21,29 +27,37 @@ export const ChatController = {
             // 1. 加载历史上下文 (针对同一个 sessionId)
             if (sessionId) {
                 try {
-                    const [rows]: [any[], any] = await pool.query(
-                        'SELECT user_prompt, ai_response, tool_calls, tool_results FROM skills_log WHERE session_id = ? ORDER BY id ASC LIMIT 10',
-                        [sessionId]
-                    );
+                    // 🔴 [修正 SQL] 获取最新的 10 条，并按时间正序排列
+                    // 原先的写法拿到了最开始的 10 条记录，导致 AI 记不住“上一轮”说了什么
+                    const query = `
+                        SELECT * FROM (
+                            SELECT user_prompt, ai_response, tool_calls, tool_results, id 
+                            FROM skills_log 
+                            WHERE session_id = ? 
+                            ORDER BY id DESC 
+                            LIMIT 10
+                        ) AS sub 
+                        ORDER BY id ASC
+                    `;
+                    const [rows]: [any[], any] = await pool.query(query, [sessionId]);
 
                     for (const row of rows) {
-                        // 添加用户提问
+                        // 用户消息
                         messages.push({ role: 'user', content: row.user_prompt });
 
-                        // 添加 AI 回复及工具调用
+                        // AI 消息 (处理工具调用历史)
                         const toolCalls = row.tool_calls;
                         messages.push({
                             role: 'assistant',
-                            content: row.ai_response,
+                            content: row.ai_response || (toolCalls && toolCalls.length > 0 ? null : ''), 
                             tool_calls: (toolCalls && toolCalls.length > 0) ? toolCalls : undefined
                         });
 
-                        // 添加工具执行结果 (如果存在)
+                        // 工具执行结果
                         const toolResults = row.tool_results;
-                        if (toolResults && toolResults.length > 0) {
+                        if (toolResults && toolResults.length > 0 && toolCalls) {
                             for (const tr of toolResults) {
-                                // 查找对应的工具名称 (由 tool_id 匹配，但日志中没存 name，只能尝试从 tool_calls 还原)
-                                const originalCall = toolCalls?.find((tc: any) => tc.id === tr.tool_id);
+                                const originalCall = toolCalls.find((tc: any) => tc.id === tr.tool_id);
                                 messages.push({
                                     role: 'tool',
                                     tool_call_id: tr.tool_id,
@@ -54,23 +68,27 @@ export const ChatController = {
                         }
                     }
                     if (rows.length > 0) {
-                        console.log(`📜 Loaded ${rows.length} turns of history for session: ${sessionId}`);
+                        console.log(`📜 Loaded ${rows.length} turns of RECENT history for session: ${sessionId}`);
                     }
                 } catch (historyErr) {
                     console.error('⚠️ Failed to load history:', historyErr);
                 }
             }
 
-            // 添加当前消息
             messages.push({ role: 'user', content: prompt });
 
-            // 2. 第一次调用 AI: 探测意图
+            // 2. 探测意图: 调用 AI (Block)
             let aiResponse: AIResponse = await aiService.chat(messages);
             let firstChoice = aiResponse.choices[0];
             let assistantMessage = firstChoice.message;
 
             let toolCallsData: ToolCall[] = assistantMessage.tool_calls || [];
             let toolResults: any[] = [];
+
+            // 🟢 一旦检测到工具调用意图，立即推送到前端
+            if (toolCallsData.length > 0) {
+                res.write(`data: ${JSON.stringify({ type: 'tool_calls', data: toolCallsData })}\n\n`);
+            }
 
             // 3. 处理工具调用
             if (firstChoice.finish_reason === 'tool_calls' && assistantMessage.tool_calls) {
@@ -90,16 +108,7 @@ export const ChatController = {
                 }
             }
 
-            // 4. 设置 SSE 响应头并流式输出最终回答
-            res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
-            res.setHeader('Connection', 'keep-alive');
-            res.flushHeaders();
-
-            if (toolCallsData.length > 0) {
-                res.write(`data: ${JSON.stringify({ type: 'tool_calls', data: toolCallsData })}\n\n`);
-            }
-
+            // 4. 流式输出最终回答
             const stream = await aiService.chatStream(messages);
             let fullContent = '';
 
@@ -111,7 +120,7 @@ export const ChatController = {
                 }
             }
 
-            // 5. 持久化交互记录 (包含 session_id)
+            // 5. 持久化交互记录
             pool.query(
                 'INSERT INTO skills_log (session_id, user_prompt, ai_response, tool_calls, tool_results, total_tokens) VALUES (?, ?, ?, ?, ?, ?)',
                 [
@@ -129,12 +138,8 @@ export const ChatController = {
 
         } catch (error: any) {
             console.error('❌ Chat Error:', error);
-            if (!res.headersSent) {
-                res.status(500).json({ error: error.message });
-            } else {
-                res.write(`data: ${JSON.stringify({ type: 'error', data: error.message })}\n\n`);
-                res.end();
-            }
+            res.write(`data: ${JSON.stringify({ type: 'error', data: error.message })}\n\n`);
+            res.end();
         }
     }
 };

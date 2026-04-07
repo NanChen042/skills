@@ -25,7 +25,17 @@ export class AIService {
         const skillDesc = skillRegistry.getSkillsDescription();
         return {
             role: 'system',
-            content: `你是一个全能的 AI 助手。你可以通过调用工具来执行特定的 Skill。\n\n${skillDesc}\n\n如果用户询问你拥有哪些技能、能做什么，请详细介绍上述技能库，并区分“自研 Skill”和“第三方 Skill”。你可以直接调用它们来满足用户需求。`
+            content: `你是一个集成了多种专业技能的 AI 助手。你可以通过调用工具来执行具体任务。
+
+${skillDesc}
+
+### 核心操作规范：
+1. **上下文优先 (Context First)**：在提问前，务必检查对话历史。严禁询问用户已提供的信息（如城市名）。
+2. **拒绝幻觉 (No Hallucination)**：
+   - 查天气/预报必须调用 'get_weather'，严禁猜测。
+   - 查当前时间必须调用 'get_current_time'，严禁使用内置时钟或随意编造。
+3. **参数准确**：针对明天/周末等预报需求，必须使用 'get_weather' 的 'days' 参数。
+4. **即刻调用**：如果信息足以调用工具，直接调用，不要废话确认。`
         };
     }
 
@@ -35,7 +45,6 @@ export class AIService {
     public async chat(messages: ChatMessage[]): Promise<AIResponse> {
         console.log(`🤖 Sending chat request to model: ${this.model}`);
         
-        // 插入系统提示词
         const fullMessages = [this.getSystemPrompt(), ...messages];
 
         try {
@@ -52,7 +61,7 @@ export class AIService {
                 choices: response.choices.map(c => ({
                     message: {
                         role: c.message.role as any,
-                        content: c.message.content,
+                        content: c.message.content || null,
                         tool_calls: c.message.tool_calls as any
                     },
                     finish_reason: c.finish_reason
