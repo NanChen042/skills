@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    /* 基础 */
+    "target": "ES2020",
+    "module": "CommonJS",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    /* Node 环境 */
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+
+    /* 严格性 */
+    "strict": true,
+    "skipLibCheck": true,
+
+    /* 路径别名（可选） */
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Skill Streaming Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            color: #1a73e8;
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        .label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: block;
+            color: #5f6368;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 15px;
+            border: 2px solid #e8eaed;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #1a73e8;
+        }
+
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 2px 6px rgba(26, 115, 232, 0.3);
+        }
+
+        button:hover {
+            background-color: #1557b0;
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            background-color: #dadce0;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        #result-container {
+            margin-top: 40px;
+            border-top: 1px solid #e8eaed;
+            pt: 30px;
+        }
+
+        .result-box {
+            background: #fdfdfd;
+            border: 1px solid #e8eaed;
+            border-left: 5px solid #1a73e8;
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            min-height: 50px;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        .tool-call {
+            color: #d93025;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 13px;
+            background: #fff1f0;
+            padding: 15px;
+            border: 1px dashed #f5c2c7;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .raw-json {
+            font-size: 12px;
+            background: #202124;
+            color: #e8eaed;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            max-height: 300px;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: #1a73e8;
+            margin-left: 2px;
+            vertical-align: middle;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>AI Skill</h1>
+
+        <div class="input-group">
+            <span class="label">输入测试提示词</span>
+            <textarea id="prompt" placeholder="例如：北京今天天气怎么样？"></textarea>
+        </div>
+
+        <button id="send-btn">发送请求 (Stream)</button>
+
+        <div id="result-container" style="display: none;">
+            <div class="input-group">
+                <span class="label">AI 实时回复：</span>
+                <div id="ai-answer" class="result-box"></div>
+            </div>
+
+            <div id="tools-section" class="input-group" style="display: none;">
+                <span class="label">工具调用详情：</span>
+                <div id="tool-details" class="tool-call"></div>
+            </div>
+
+            <div class="input-group">
+                <span class="label">日志记录：</span>
+                <pre id="raw-log" class="raw-json"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const btn = document.getElementById('send-btn');
+        const promptInput = document.getElementById('prompt');
+        const resultContainer = document.getElementById('result-container');
+        const aiAnswer = document.getElementById('ai-answer');
+        const toolsSection = document.getElementById('tools-section');
+        const toolDetails = document.getElementById('tool-details');
+        const rawLog = document.getElementById('raw-log');
+
+        btn.addEventListener('click', async () => {
+            const prompt = promptInput.value.trim();
+            if (!prompt) return alert('请输入内容');
+            // UI 初始化
+            btn.disabled = true;
+            btn.innerText = '正在思考中...';
+            resultContainer.style.display = 'block';
+            aiAnswer.innerHTML = '<span class="cursor"></span>';
+            toolsSection.style.display = 'none';
+            toolDetails.innerText = '';
+            rawLog.innerText = '';
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt })
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || '请求失败');
+                }
+                const decoder = new TextDecoder();
+                let fullAnswer = '';
+                let buffer = '';
+                //  流式读取（关键）
+                for await (const chunk of response.body) {
+                    const text = decoder.decode(chunk, { stream: true });
+                    buffer += text;
+                    // 按行处理（SSE）
+                    const lines = buffer.split('\n');
+                    // 最后一行可能不完整，保留
+                    buffer = lines.pop();
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        const dataStr = line.slice(6);
+                        if (dataStr === '[DONE]') continue;
+                        try {
+                            const payload = JSON.parse(dataStr);
+                            if (payload.type === 'content') {
+                                fullAnswer += payload.data;
+                                aiAnswer.innerHTML = fullAnswer + '<span class="cursor"></span>';
+                            }
+                            else if (payload.type === 'tool_calls') {
+                                toolsSection.style.display = 'block';
+                                toolDetails.innerText = JSON.stringify(payload.data, null, 2);
+                            }
+                            else if (payload.type === 'error') {
+                                throw new Error(payload.data);
+                            }
+                        } catch (e) {
+                            console.error('解析失败:', e, dataStr);
+                        }
+                    }
+                }
+
+                // 收尾
+                aiAnswer.innerHTML = fullAnswer;
+                rawLog.innerText = '流式输出完毕';
+            } catch (error) {
+                aiAnswer.innerHTML = `<span style="color:red">错误: ${error.message}</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = '发送请求 (Stream)';
+            }
+        });
+    </script>
+</body>
+
+</html>
