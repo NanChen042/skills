@@ -33,6 +33,11 @@ export interface AIResponse {
     };
 }
 
+export interface ChatRequest {
+    prompt: string;
+    sessionId?: string;
+}
+
 export interface ISkill {
     id: string;
     name: string;

@@ -36,7 +36,11 @@
                 <div class="w-2 h-2 rounded-full bg-zinc-800"></div>
                 <h1 class="text-sm font-semibold tracking-wide text-zinc-800">动态Skill对话</h1>
             </div>
-            <span class="text-xs font-mono text-zinc-400">v2.1 / Stream Mode</span>
+            <div class="flex items-center gap-4">
+                <button id="clear-btn" class="text-xs font-medium text-zinc-400 hover:text-red-500 transition-colors flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-red-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></button>
+                <span class="text-xs font-mono text-zinc-400">v2.5 / Multi-turn</span>
+            </div>
         </header>
 
         <!-- 聊天记录区 -->
@@ -46,7 +50,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
-                <p class="text-sm font-medium tracking-wider">系统已就绪，请在下方输入内容</p>
+                <p class="text-sm font-medium tracking-wider">系统已就绪，已开启持久化记忆</p>
             </div>
         </div>
 
@@ -66,11 +70,34 @@
 
     <script>
         const btn = document.getElementById('send-btn');
+        const clearBtn = document.getElementById('clear-btn');
         const promptInput = document.getElementById('prompt');
         const chatHistory = document.getElementById('chat-history');
         const emptyState = document.getElementById('empty-state');
 
         const cursorHTML = '<span class="inline-block w-[2px] h-[1em] bg-zinc-800 ml-1 align-middle animate-blink"></span>';
+
+        // Session ID 管理
+        function getSessionId() {
+            let sid = localStorage.getItem('chat_session_id');
+            if (!sid) {
+                sid = 'session_' + Math.random().toString(36).substring(2, 11);
+                localStorage.setItem('chat_session_id', sid);
+            }
+            return sid;
+        }
+
+        clearBtn.addEventListener('click', () => {
+            if (confirm('确定要清除对话记忆并开启新会话吗？')) {
+                localStorage.removeItem('chat_session_id');
+                chatHistory.innerHTML = '';
+                if (emptyState) {
+                   emptyState.style.display = 'flex';
+                   chatHistory.appendChild(emptyState);
+                }
+                alert('已清除，新会话已开启');
+            }
+        });
 
         // 自动调整输入框高度
         promptInput.addEventListener('input', function () {
@@ -78,36 +105,27 @@
             this.style.height = (this.scrollHeight) + 'px';
         });
 
-        // 添加用户消息气泡（修复了代码换行导致的上下留白 bug）
         function addUserMessage(text) {
             const wrapper = document.createElement('div');
             wrapper.className = 'flex justify-end w-full';
             const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            // 注意：这里的反引号内不能随意换行，否则会被 whitespace-pre-wrap 渲染出来
             wrapper.innerHTML = `<div class="max-w-[80%] bg-zinc-900 text-white text-sm leading-relaxed px-5 py-3.5 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words">${safeText}</div>`;
             chatHistory.appendChild(wrapper);
             scrollToBottom();
         }
 
-        // 添加 AI 消息气泡并返回内容容器以便实时更新
         function addAIMessage() {
             const wrapper = document.createElement('div');
             wrapper.className = 'flex flex-col items-start w-full space-y-2';
-
-            // 文本内容区
             const contentBox = document.createElement('div');
             contentBox.className = 'max-w-[85%] bg-white border border-zinc-200 text-zinc-800 text-sm leading-relaxed px-5 py-4 rounded-2xl rounded-tl-sm shadow-sm whitespace-pre-wrap break-words min-h-[52px]';
             contentBox.innerHTML = cursorHTML;
-
-            // 工具调用区（默认隐藏）
             const toolBox = document.createElement('div');
             toolBox.className = 'hidden w-[85%] bg-zinc-100 border border-zinc-200 text-zinc-500 font-mono text-xs p-3 rounded-xl overflow-x-auto';
-
             wrapper.appendChild(contentBox);
             wrapper.appendChild(toolBox);
             chatHistory.appendChild(wrapper);
             scrollToBottom();
-
             return { contentBox, toolBox };
         }
 
@@ -121,19 +139,19 @@
 
             if (emptyState) emptyState.style.display = 'none';
 
-            // UI 状态切换
             promptInput.value = '';
             promptInput.style.height = 'auto';
             btn.disabled = true;
             addUserMessage(prompt);
 
             const { contentBox, toolBox } = addAIMessage();
+            const sessionId = getSessionId();
 
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt })
+                    body: JSON.stringify({ prompt, sessionId })
                 });
 
                 if (!response.ok) {
@@ -145,8 +163,12 @@
                 let fullAnswer = '';
                 let buffer = '';
 
-                for await (const chunk of response.body) {
-                    const text = decoder.decode(chunk, { stream: true });
+                const reader = response.body.getReader();
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const text = decoder.decode(value, { stream: true });
                     buffer += text;
                     const lines = buffer.split('\n');
                     buffer = lines.pop();
@@ -165,19 +187,18 @@
                             }
                             else if (payload.type === 'tool_calls') {
                                 toolBox.classList.remove('hidden');
-                                toolBox.innerText = '工具调用:\n' + JSON.stringify(payload.data, null, 2);
+                                toolBox.innerText = '工具尝试:\n' + JSON.stringify(payload.data, null, 2);
                                 scrollToBottom();
                             }
                             else if (payload.type === 'error') {
                                 throw new Error(payload.data);
                             }
                         } catch (e) {
-                            console.error('解析失败:', e, dataStr);
+                            console.error('解析错误:', e, dataStr);
                         }
                     }
                 }
 
-                // 流结束，移除光标
                 contentBox.innerHTML = fullAnswer.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
             } catch (error) {
@@ -189,7 +210,6 @@
             }
         });
 
-        // 支持回车发送，Shift+回车换行
         promptInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();

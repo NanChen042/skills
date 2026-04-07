@@ -8,7 +8,7 @@ const PORT = Number(process.env.PORT) || 3000;
 
 async function startServer() {
     console.log('🚀 Starting Skill Backend Server...');
-    
+
     // 1. 尝试连接数据库
     await testConnection();
 
