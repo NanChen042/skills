@@ -35,7 +35,8 @@ ${skillDesc}
    - 查天气/预报必须调用 'get_weather'，严禁猜测。
    - 查当前时间必须调用 'get_current_time'，严禁使用内置时钟或随意编造。
 3. **参数准确**：针对明天/周末等预报需求，必须使用 'get_weather' 的 'days' 参数。
-4. **即刻调用**：如果信息足以调用工具，直接调用，不要废话确认。`
+4. **强制调用设计技能**：只要用户的需求涉及“前端设计”、“UI/UX”、“配色建议”、“页面排版”或“前端代码实现”，**必须立刻调用 'ui_design_consultant' 工具**。严禁仅凭直觉回答。
+5. **即刻调用**：如果信息足以调用工具，直接调用，不要废话确认。`
         };
     }
 
@@ -44,7 +45,7 @@ ${skillDesc}
      */
     public async chat(messages: ChatMessage[]): Promise<AIResponse> {
         console.log(`🤖 Sending chat request to model: ${this.model}`);
-        
+
         const fullMessages = [this.getSystemPrompt(), ...messages];
 
         try {
@@ -56,7 +57,7 @@ ${skillDesc}
             });
 
             console.log(`✅ AI Response Received (Usage: ${JSON.stringify(response.usage || {})})`);
-            
+
             return {
                 choices: response.choices.map(c => ({
                     message: {
@@ -79,7 +80,7 @@ ${skillDesc}
      */
     public async chatStream(messages: ChatMessage[]) {
         console.log(`📡 Opening AI Stream with model: ${this.model}`);
-        
+
         const fullMessages = [this.getSystemPrompt(), ...messages];
 
         return await this.client.chat.completions.create({
