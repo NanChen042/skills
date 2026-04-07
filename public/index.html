@@ -4,176 +4,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Skill Streaming Test</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            line-height: 1.6;
-            background-color: #f8f9fa;
-            color: #333;
-        }
-
-        .container {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-        }
-
-        h1 {
-            color: #1a73e8;
-            text-align: center;
-            font-weight: 600;
-            margin-bottom: 30px;
-        }
-
-        .input-group {
-            margin-bottom: 25px;
-        }
-
-        .label {
-            font-weight: 600;
-            margin-bottom: 8px;
-            display: block;
-            color: #5f6368;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        textarea {
-            width: 100%;
-            height: 120px;
-            padding: 15px;
-            border: 2px solid #e8eaed;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 16px;
-            transition: border-color 0.3s;
-            resize: vertical;
-        }
-
-        textarea:focus {
-            outline: none;
-            border-color: #1a73e8;
-        }
-
-        button {
-            background-color: #1a73e8;
-            color: white;
-            border: none;
-            padding: 14px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            width: 100%;
-            font-weight: 600;
-            transition: all 0.3s;
-            box-shadow: 0 2px 6px rgba(26, 115, 232, 0.3);
-        }
-
-        button:hover {
-            background-color: #1557b0;
-            transform: translateY(-1px);
-        }
-
-        button:disabled {
-            background-color: #dadce0;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        #result-container {
-            margin-top: 40px;
-            border-top: 1px solid #e8eaed;
-            pt: 30px;
-        }
-
-        .result-box {
-            background: #fdfdfd;
-            border: 1px solid #e8eaed;
-            border-left: 5px solid #1a73e8;
-            padding: 20px;
-            border-radius: 8px;
-            white-space: pre-wrap;
-            min-height: 50px;
-            font-size: 16px;
-            margin-bottom: 20px;
-        }
-
-        .tool-call {
-            color: #d93025;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 13px;
-            background: #fff1f0;
-            padding: 15px;
-            border: 1px dashed #f5c2c7;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .raw-json {
-            font-size: 12px;
-            background: #202124;
-            color: #e8eaed;
-            padding: 15px;
-            border-radius: 8px;
-            overflow-x: auto;
-            max-height: 300px;
-        }
-
-        .cursor {
-            display: inline-block;
-            width: 2px;
-            height: 1em;
-            background: #1a73e8;
-            margin-left: 2px;
-            vertical-align: middle;
-            animation: blink 1s infinite;
-        }
-
-        @keyframes blink {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0;
+    <title>流式对话测试引擎</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    keyframes: {
+                        blink: {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0' },
+                        }
+                    },
+                    animation: {
+                        blink: 'blink 1s infinite',
+                    }
+                }
             }
         }
-    </style>
+    </script>
 </head>
 
-<body>
-    <div class="container">
-        <h1>AI Skill</h1>
+<body class="bg-zinc-100 text-zinc-900 font-sans antialiased h-screen flex flex-col overflow-hidden selection:bg-zinc-300">
 
-        <div class="input-group">
-            <span class="label">输入测试提示词</span>
-            <textarea id="prompt" placeholder="例如：北京今天天气怎么样？"></textarea>
+    <!-- 主容器 -->
+    <div class="flex-1 max-w-4xl w-full mx-auto bg-zinc-50/50 flex flex-col shadow-2xl shadow-zinc-200/50 border-x border-zinc-200/60 relative overflow-y-auto">
+
+        <!-- 顶部导航栏 -->
+        <header class="bg-white/80 backdrop-blur-md border-b border-zinc-200 px-6 py-4 flex items-center justify-between z-10 shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-2 h-2 rounded-full bg-zinc-800"></div>
+                <h1 class="text-sm font-semibold tracking-wide text-zinc-800">动态Skill对话</h1>
+            </div>
+            <span class="text-xs font-mono text-zinc-400">v2.1 / Stream Mode</span>
+        </header>
+
+        <!-- 聊天记录区 -->
+        <div id="chat-history" class="flex-1 overflow-y-auto p-6 space-y-8 scroll-smooth">
+            <!-- 欢迎提示词 -->
+            <div class="flex flex-col items-center justify-center h-full text-zinc-400 space-y-4 select-none opacity-50" id="empty-state">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <p class="text-sm font-medium tracking-wider">系统已就绪，请在下方输入内容</p>
+            </div>
         </div>
 
-        <button id="send-btn">发送请求 (Stream)</button>
+        <!-- 输入区 (极简无光环版) -->
+        <div class="bg-white border-t border-zinc-200 p-4 md:p-6 z-10 shrink-0">
+            <div class="relative max-w-3xl mx-auto flex items-end gap-3">
+                <textarea id="prompt" rows="1" placeholder="输入测试提示词..." class="w-full max-h-32 min-h-[48px] py-3.5 px-4 bg-white border border-zinc-300 rounded-xl text-zinc-800 text-sm placeholder-zinc-400 focus:outline-none focus:border-zinc-600 transition-colors resize-none overflow-y-auto leading-relaxed"></textarea>
 
-        <div id="result-container" style="display: none;">
-            <div class="input-group">
-                <span class="label">AI 实时回复：</span>
-                <div id="ai-answer" class="result-box"></div>
-            </div>
-
-            <div id="tools-section" class="input-group" style="display: none;">
-                <span class="label">工具调用详情：</span>
-                <div id="tool-details" class="tool-call"></div>
-            </div>
-
-            <div class="input-group">
-                <span class="label">日志记录：</span>
-                <pre id="raw-log" class="raw-json"></pre>
+                <button id="send-btn" class="shrink-0 w-12 h-12 flex items-center justify-center bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 ml-0.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                    </svg>
+                </button>
             </div>
         </div>
     </div>
@@ -181,57 +67,106 @@
     <script>
         const btn = document.getElementById('send-btn');
         const promptInput = document.getElementById('prompt');
-        const resultContainer = document.getElementById('result-container');
-        const aiAnswer = document.getElementById('ai-answer');
-        const toolsSection = document.getElementById('tools-section');
-        const toolDetails = document.getElementById('tool-details');
-        const rawLog = document.getElementById('raw-log');
+        const chatHistory = document.getElementById('chat-history');
+        const emptyState = document.getElementById('empty-state');
+
+        const cursorHTML = '<span class="inline-block w-[2px] h-[1em] bg-zinc-800 ml-1 align-middle animate-blink"></span>';
+
+        // 自动调整输入框高度
+        promptInput.addEventListener('input', function () {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // 添加用户消息气泡（修复了代码换行导致的上下留白 bug）
+        function addUserMessage(text) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex justify-end w-full';
+            const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            // 注意：这里的反引号内不能随意换行，否则会被 whitespace-pre-wrap 渲染出来
+            wrapper.innerHTML = `<div class="max-w-[80%] bg-zinc-900 text-white text-sm leading-relaxed px-5 py-3.5 rounded-2xl rounded-tr-sm shadow-sm whitespace-pre-wrap break-words">${safeText}</div>`;
+            chatHistory.appendChild(wrapper);
+            scrollToBottom();
+        }
+
+        // 添加 AI 消息气泡并返回内容容器以便实时更新
+        function addAIMessage() {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex flex-col items-start w-full space-y-2';
+
+            // 文本内容区
+            const contentBox = document.createElement('div');
+            contentBox.className = 'max-w-[85%] bg-white border border-zinc-200 text-zinc-800 text-sm leading-relaxed px-5 py-4 rounded-2xl rounded-tl-sm shadow-sm whitespace-pre-wrap break-words min-h-[52px]';
+            contentBox.innerHTML = cursorHTML;
+
+            // 工具调用区（默认隐藏）
+            const toolBox = document.createElement('div');
+            toolBox.className = 'hidden w-[85%] bg-zinc-100 border border-zinc-200 text-zinc-500 font-mono text-xs p-3 rounded-xl overflow-x-auto';
+
+            wrapper.appendChild(contentBox);
+            wrapper.appendChild(toolBox);
+            chatHistory.appendChild(wrapper);
+            scrollToBottom();
+
+            return { contentBox, toolBox };
+        }
+
+        function scrollToBottom() {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
 
         btn.addEventListener('click', async () => {
             const prompt = promptInput.value.trim();
-            if (!prompt) return alert('请输入内容');
-            // UI 初始化
+            if (!prompt) return;
+
+            if (emptyState) emptyState.style.display = 'none';
+
+            // UI 状态切换
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
             btn.disabled = true;
-            btn.innerText = '正在思考中...';
-            resultContainer.style.display = 'block';
-            aiAnswer.innerHTML = '<span class="cursor"></span>';
-            toolsSection.style.display = 'none';
-            toolDetails.innerText = '';
-            rawLog.innerText = '';
+            addUserMessage(prompt);
+
+            const { contentBox, toolBox } = addAIMessage();
+
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt })
                 });
+
                 if (!response.ok) {
                     const err = await response.json();
                     throw new Error(err.error || '请求失败');
                 }
+
                 const decoder = new TextDecoder();
                 let fullAnswer = '';
                 let buffer = '';
-                //  流式读取（关键）
+
                 for await (const chunk of response.body) {
                     const text = decoder.decode(chunk, { stream: true });
                     buffer += text;
-                    // 按行处理（SSE）
                     const lines = buffer.split('\n');
-                    // 最后一行可能不完整，保留
                     buffer = lines.pop();
+
                     for (const line of lines) {
                         if (!line.startsWith('data: ')) continue;
                         const dataStr = line.slice(6);
                         if (dataStr === '[DONE]') continue;
+
                         try {
                             const payload = JSON.parse(dataStr);
                             if (payload.type === 'content') {
                                 fullAnswer += payload.data;
-                                aiAnswer.innerHTML = fullAnswer + '<span class="cursor"></span>';
+                                contentBox.innerHTML = fullAnswer.replace(/</g, "&lt;").replace(/>/g, "&gt;") + cursorHTML;
+                                scrollToBottom();
                             }
                             else if (payload.type === 'tool_calls') {
-                                toolsSection.style.display = 'block';
-                                toolDetails.innerText = JSON.stringify(payload.data, null, 2);
+                                toolBox.classList.remove('hidden');
+                                toolBox.innerText = '工具调用:\n' + JSON.stringify(payload.data, null, 2);
+                                scrollToBottom();
                             }
                             else if (payload.type === 'error') {
                                 throw new Error(payload.data);
@@ -242,14 +177,23 @@
                     }
                 }
 
-                // 收尾
-                aiAnswer.innerHTML = fullAnswer;
-                rawLog.innerText = '流式输出完毕';
+                // 流结束，移除光标
+                contentBox.innerHTML = fullAnswer.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
             } catch (error) {
-                aiAnswer.innerHTML = `<span style="color:red">错误: ${error.message}</span>`;
+                contentBox.innerHTML = `<span class="text-red-600 font-medium">系统错误: ${error.message}</span>`;
             } finally {
                 btn.disabled = false;
-                btn.innerText = '发送请求 (Stream)';
+                promptInput.focus();
+                scrollToBottom();
+            }
+        });
+
+        // 支持回车发送，Shift+回车换行
+        promptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (!btn.disabled) btn.click();
             }
         });
     </script>
